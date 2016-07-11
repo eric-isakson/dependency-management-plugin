@@ -16,6 +16,7 @@
 
 package io.spring.gradle.dependencymanagement.exclusions;
 
+import groovy.lang.Closure;
 import io.spring.gradle.dependencymanagement.DependencyManagementConfigurationContainer;
 import io.spring.gradle.dependencymanagement.DependencyManagementConfigurationContainer.ConfigurationConfigurer;
 import io.spring.gradle.dependencymanagement.DependencyManagementContainer;
@@ -31,12 +32,14 @@ import org.gradle.api.artifacts.result.DependencyResult;
 import org.gradle.api.artifacts.result.ResolutionResult;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
+import org.gradle.api.plugins.ExtensionAware;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +70,7 @@ public class ExclusionConfiguringAction implements Action<ResolvableDependencies
     public ExclusionConfiguringAction(DependencyManagementExtension dependencyManagementExtension,
             DependencyManagementContainer dependencyManagementContainer,
             DependencyManagementConfigurationContainer configurationContainer,
-            Configuration configuration, ExclusionResolver exclusionResolver,
+            final Configuration configuration, ExclusionResolver exclusionResolver,
             final VersionConfiguringAction versionConfiguringAction) {
         this.dependencyManagementExtension = dependencyManagementExtension;
         this.dependencyManagementContainer = dependencyManagementContainer;
@@ -77,8 +80,17 @@ public class ExclusionConfiguringAction implements Action<ResolvableDependencies
         this.versionConfigurer = new ConfigurationConfigurer() {
 
             @Override
-            public void configure(Configuration configuration) {
-                configuration.getResolutionStrategy().eachDependency(versionConfiguringAction);
+            public void configure(Configuration configurationCopy) {
+                configurationCopy.getResolutionStrategy().eachDependency(versionConfiguringAction);
+                if (configuration instanceof ExtensionAware) {
+                    Iterator<Map.Entry<String, Object>> i = ((ExtensionAware) configuration).getExtensions().getExtraProperties().getProperties().entrySet().iterator();
+                    while (i.hasNext()) {
+                        Map.Entry<String, Object> entry = i.next();
+                        if ("resolutionStrategy".equals(entry.getKey()) && entry.getValue() instanceof Closure) {
+                            configurationCopy.resolutionStrategy((Closure) entry.getValue());
+                        }
+                    }
+                }
             }
 
         };

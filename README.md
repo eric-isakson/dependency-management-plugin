@@ -370,6 +370,42 @@ dependencyManagement {
 }
 ```
 
+If your resolution strategy differs by configuration, you can set an extension property on
+your project configuration named 'resolutionStrategy' with the Closure to be applied to the
+detached configuration's resolutionStrategy method.
+
+```groovy
+def myStrategy = { /* some resolution strategy implementation */ }
+project.configurations.compile.resolutionStrategy myStrategy
+project.configurations.compile.ext.resolutionStrategy = myStrategy
+```
+
+NOTE: I considered using the 'Dependency management for specific configurations' but I want
+to be able to set the resolution strategy from my corporate policy plugins after the original
+build author has applied and configured the dependencyManagement block in the main build.gradle
+file. To do that, I need the ability for a DependencyManagementHandler to have a resolutionStrategy
+applied and the dependencyManagement extension to provide accessors to the handler (or some public
+interface thereof) rather than creating a new one if the propertyMissing method is called. So what I
+would like is in my corporate plugin to be able to say something like:
+
+```groovy
+if (project.plugins.hasPlugin('io.spring.dependency-management')) {
+    project.dependencyManagement.compile.resolutionStrategy myStrategy
+}
+```
+
+and/or for my build.gradle author to say:
+
+```groovy
+dependencyManagement {
+     compile {
+          resolutionStrategy {
+               …
+          }
+     }
+}
+```
+
 ### Dependency management for specific configurations
 
 To target dependency management at a single configuration, you nest the dependency management

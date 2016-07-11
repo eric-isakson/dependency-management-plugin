@@ -21,6 +21,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.DependencyResolveDetails
+import org.gradle.api.artifacts.ResolveException
 import org.gradle.testfixtures.ProjectBuilder
 import spock.lang.Specification
 
@@ -1217,5 +1218,48 @@ public class DependencyManagementPluginSpec extends Specification {
             }
         then: 'The dependency can be resolved'
             project.configurations.compile.resolve()
+    }
+
+    def 'User-provided resolution strategy can be applied to individual configurations'() {
+        given: 'A project with a dependency in the compile configuration'
+        project.apply plugin: 'io.spring.dependency-management'
+        project.apply plugin: 'java'
+        project.dependencyManagement {
+            dependencies {
+                dependency 'org.springframework:spring-core:4.2.6.RELEASE'
+            }
+        }
+        project.dependencies {
+            compile 'org.springframework:spring-core'
+        }
+        when: 'A dependency management resolution strategy on the compile configuration rejects the dependency'
+        Closure rejectSpringCoreStrategy = {
+            // older versions of Gradle do not have componentSelection, so just test this with an eachDependency
+            // action that uses an unresolvable target instead of a componentSelection that rejects this dependency.
+            it.eachDependency(new Action<DependencyResolveDetails>() {
+
+                @Override
+                void execute(DependencyResolveDetails details) {
+                    if (details.target.name == 'spring-core') {
+                        details.useTarget('some.unresolvable:dependency')
+                    }
+                }
+
+            })
+        }
+        project.configurations.compile.resolutionStrategy rejectSpringCoreStrategy
+        project.configurations.compile.ext.resolutionStrategy = rejectSpringCoreStrategy
+        // would prefer to say:
+        //project.dependencyManagement.compile.resolutionStrategy rejectSpringCoreStrategy
+        then: 'The dependency cannot be resolved in the compile configuration but can be in the testCompile configuration'
+        def resolveException = null
+        try {
+            project.configurations.compile.resolve()
+        }
+        catch(ResolveException e) {
+            resolveException = e
+        }
+        resolveException != null
+        project.configurations.testCompile.resolve()
     }
 }
