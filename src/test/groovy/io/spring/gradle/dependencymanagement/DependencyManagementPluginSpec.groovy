@@ -279,6 +279,43 @@ public class DependencyManagementPluginSpec extends Specification {
             files.collect { it.name }.containsAll(['child-1.1.0.jar', 'grandchild-1.1.0.jar'])
     }
 
+    def "Multiproject build with project dependencies resolve transitively when the dependent project uses dependency management"() {
+        given: 'A project with a project dependency and dependency management applied in the dependent project'
+
+            project.mkdir('child')
+            def child = new ProjectBuilder().withName('child').withParent(project).build()
+
+            child.repositories {
+                mavenCentral()
+            }
+            child.group = 'test'
+            child.version = '1.1.0'
+            child.apply plugin: 'io.spring.dependency-management'
+            child.apply plugin: 'java'
+
+            child.dependencyManagement {
+                dependencies {
+                    dependency 'org.springframework:spring-core:4.0.4.RELEASE'
+                }
+            }
+            child.dependencies {
+                compile 'org.springframework:spring-core'
+            }
+            
+            project.apply plugin: 'java'
+            project.dependencies {
+                compile project([path: ':child'])
+            }
+        when: 'A configuration is resolved'
+            def childFiles = child.configurations.compile.resolve()
+            def files = project.configurations.compile.resolve()
+        then: 'Dependency management is applied to the transitive dependencies'
+            childFiles.size() == 2
+            childFiles.collect { it.name }.containsAll(['spring-core-4.0.4.RELEASE.jar', 'commons-logging-1.1.3.jar'])
+            files.size() == 1
+            files.collect { it.name }.containsAll(['spring-core-4.0.4.RELEASE.jar', 'commons-logging-1.1.3.jar'])
+    }
+
     def "Versions of direct dependencies take precedence over dependency management in an imported bom"() {
         given: 'A project with a version on a direct dependency and imported dependency management for the dependency'
             project.apply plugin: 'io.spring.dependency-management'
